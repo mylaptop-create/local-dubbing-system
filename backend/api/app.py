@@ -18,8 +18,7 @@ from backend.core.diagnostics import get_system_diagnostics
 from backend.database.manager import DatabaseManager
 from backend.pipeline.orchestrator import PipelineOrchestrator
 from backend.providers.tts import SmartTTSProvider
-from backend.providers.transcription import SmartTranscriptionProvider
-from backend.providers.translation import SmartTranslationProvider
+from backend.media.downloader import download_video_from_url
 
 logger = logging.getLogger("backend.api")
 
@@ -55,13 +54,11 @@ def broadcast_progress(project_id: str, stage: str, progress: float, message: st
 
 orchestrator.progress_callback = broadcast_progress
 
-class ProjectCreateRequest(BaseModel):
+class URLProjectRequest(BaseModel):
+    url: str
     name: str
     source_lang: str = "zh"
     target_lang: str = "en"
-    transcription_provider: str = "whisper"
-    translation_provider: str = "opus_mt"
-    tts_provider: str = "edge_tts"
     tts_voice: str = "en-US-JennyNeural"
     audio_mode: str = "replace"
     burn_subtitles: bool = False
@@ -126,6 +123,37 @@ async def create_project(
         config=config,
         source_lang=source_lang,
         target_lang=target_lang
+    )
+
+    return proj
+
+@app.post("/api/projects/from-url")
+def create_project_from_url(req: URLProjectRequest):
+    project_id = f"proj_{uuid.uuid4().hex[:10]}"
+    project_dir = settings.projects_dir / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        download_info = download_video_from_url(req.url, project_dir)
+        saved_video_path = download_info["file_path"]
+    except Exception as e:
+        shutil.rmtree(project_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+    config = {
+        "tts_voice": req.tts_voice,
+        "audio_mode": req.audio_mode,
+        "burn_subtitles": req.burn_subtitles,
+        "source_url": req.url
+    }
+
+    proj = db.create_project(
+        project_id=project_id,
+        name=req.name,
+        source_video_path=saved_video_path,
+        config=config,
+        source_lang=req.source_lang,
+        target_lang=req.target_lang
     )
 
     return proj

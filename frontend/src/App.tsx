@@ -14,12 +14,15 @@ import {
   Cpu,
   ArrowRight,
   ShieldCheck,
-  Globe
+  Globe,
+  Link,
+  UploadCloud
 } from 'lucide-react';
 import type { Project, SystemDiagnostics, Voice, StorageInfo, LogEntry } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'new' | 'projects' | 'queue' | 'diagnostics' | 'storage' | 'logs'>('new');
+  const [inputSourceMode, setInputSourceMode] = useState<'file' | 'url'>('file');
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
@@ -29,6 +32,7 @@ export default function App() {
 
   // Form State
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState('');
   const [projectName, setProjectName] = useState('');
   const [ttsVoice, setTtsVoice] = useState('en-US-JennyNeural');
   const [audioMode, setAudioMode] = useState<'replace' | 'duck'>('replace');
@@ -92,36 +96,60 @@ export default function App() {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!videoFile || !projectName) return;
+    if (!projectName) return;
     setIsSubmitting(true);
 
-    const formData = new FormData();
-    formData.append('video', videoFile);
-    formData.append('name', projectName);
-    formData.append('source_lang', 'zh');
-    formData.append('target_lang', 'en');
-    formData.append('tts_voice', ttsVoice);
-    formData.append('audio_mode', audioMode);
-    formData.append('burn_subtitles', String(burnSubtitles));
-
     try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        body: formData,
-      });
+      let createdProject: Project;
+      if (inputSourceMode === 'file') {
+        if (!videoFile) return;
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        formData.append('name', projectName);
+        formData.append('source_lang', 'zh');
+        formData.append('target_lang', 'en');
+        formData.append('tts_voice', ttsVoice);
+        formData.append('audio_mode', audioMode);
+        formData.append('burn_subtitles', String(burnSubtitles));
 
-      if (res.ok) {
-        const createdProject = await res.json();
-        await fetch(`/api/projects/${createdProject.id}/start`, { method: 'POST' });
-        setVideoFile(null);
-        setProjectName('');
-        await fetchProjects();
-        setSelectedProject(createdProject);
-        setActiveTab('queue');
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Failed to upload file project");
+        createdProject = await res.json();
+      } else {
+        if (!videoUrl) return;
+        const res = await fetch('/api/projects/from-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: videoUrl,
+            name: projectName,
+            source_lang: 'zh',
+            target_lang: 'en',
+            tts_voice: ttsVoice,
+            audio_mode: audioMode,
+            burn_subtitles: burnSubtitles
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Failed to download video from URL");
+        }
+        createdProject = await res.json();
       }
-    } catch (e) {
-      alert('Failed to create project.');
-    } finally {
+
+      await fetch(`/api/projects/${createdProject.id}/start`, { method: 'POST' });
+      setVideoFile(null);
+      setVideoUrl('');
+      setProjectName('');
+      await fetchProjects();
+      setSelectedProject(createdProject);
+      setActiveTab('queue');
+    } catch (e: any) {
+      alert(`Error creating project: ${e.message}`);
+    } fontally: {
       setIsSubmitting(false);
     }
   };
@@ -274,40 +302,79 @@ export default function App() {
             <div className="lg:col-span-7 bg-white p-8 rounded-[24px] border border-[#0e0f0c] shadow-md space-y-6">
               <div className="flex items-center justify-between border-b border-[#0e0f0c]/10 pb-4">
                 <h2 className="font-wise-hero text-2xl text-[#0e0f0c]">Create Translation Task</h2>
-                <span className="bg-[#e2f6d5] text-[#054d28] font-semibold text-xs px-3 py-1 rounded-full border border-[#c5edab]">
-                  ZH ➔ EN
-                </span>
+                <div className="flex items-center bg-[#e8ebe6] p-1 rounded-[24px] border border-[#0e0f0c]/10 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setInputSourceMode('file')}
+                    className={`px-3 py-1.5 rounded-[20px] cursor-pointer transition-all ${
+                      inputSourceMode === 'file' ? 'bg-[#9fe870] text-[#0e0f0c]' : 'text-[#454745]'
+                    }`}
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 inline mr-1" /> File Upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputSourceMode('url')}
+                    className={`px-3 py-1.5 rounded-[20px] cursor-pointer transition-all ${
+                      inputSourceMode === 'url' ? 'bg-[#9fe870] text-[#0e0f0c]' : 'text-[#454745]'
+                    }`}
+                  >
+                    <Link className="w-3.5 h-3.5 inline mr-1" /> YouTube / Bilibili Link
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={handleCreateProject} className="space-y-6">
-                {/* File Upload Box */}
-                <div className="bg-[#e8ebe6] border-2 border-dashed border-[#0e0f0c]/20 hover:border-[#0e0f0c] p-6 rounded-[24px] text-center transition-all cursor-pointer">
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => {
-                      if (e.target.files?.[0]) {
-                        setVideoFile(e.target.files[0]);
-                        if (!projectName) setProjectName(e.target.files[0].name.replace(/\.[^/.]+$/, ''));
-                      }
-                    }}
-                    className="hidden"
-                    id="video-upload"
-                  />
-                  <label htmlFor="video-upload" className="cursor-pointer block">
-                    <Video className="w-10 h-10 mx-auto text-[#0e0f0c] mb-2" />
-                    {videoFile ? (
-                      <p className="text-[#054d28] font-bold text-sm bg-[#e2f6d5] py-2 px-4 rounded-full inline-block border border-[#c5edab]">
-                        ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
-                      </p>
-                    ) : (
-                      <div>
-                        <p className="text-[#0e0f0c] font-semibold text-base">Select or drop Chinese video file</p>
-                        <p className="text-[#868685] text-xs mt-1">MP4, MOV, MKV or AVI supported</p>
-                      </div>
-                    )}
-                  </label>
-                </div>
+                {/* File Upload Box OR URL Input Box */}
+                {inputSourceMode === 'file' ? (
+                  <div className="bg-[#e8ebe6] border-2 border-dashed border-[#0e0f0c]/20 hover:border-[#0e0f0c] p-6 rounded-[24px] text-center transition-all cursor-pointer">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          setVideoFile(e.target.files[0]);
+                          if (!projectName) setProjectName(e.target.files[0].name.replace(/\.[^/.]+$/, ''));
+                        }
+                      }}
+                      className="hidden"
+                      id="video-upload"
+                    />
+                    <label htmlFor="video-upload" className="cursor-pointer block">
+                      <Video className="w-10 h-10 mx-auto text-[#0e0f0c] mb-2" />
+                      {videoFile ? (
+                        <p className="text-[#054d28] font-bold text-sm bg-[#e2f6d5] py-2 px-4 rounded-full inline-block border border-[#c5edab]">
+                          ✓ {videoFile.name} ({(videoFile.size / (1024 * 1024)).toFixed(1)} MB)
+                        </p>
+                      ) : (
+                        <div>
+                          <p className="text-[#0e0f0c] font-semibold text-base">Select or drop Chinese video file</p>
+                          <p className="text-[#868685] text-xs mt-1">MP4, MOV, MKV or AVI supported</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                ) : (
+                  <div className="bg-[#e8ebe6] p-6 rounded-[24px] border border-[#0e0f0c]/10 space-y-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#454745]">
+                      YouTube or Bilibili Video URL
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <Link className="w-5 h-5 text-[#868685]" />
+                      <input
+                        type="url"
+                        value={videoUrl}
+                        onChange={(e) => setVideoUrl(e.target.value)}
+                        placeholder="https://www.youtube.com/watch?v=... or https://www.bilibili.com/video/BV..."
+                        required={inputSourceMode === 'url'}
+                        className="w-full bg-white border border-[#0e0f0c] rounded-[12px] px-4 py-2.5 text-[#0e0f0c] font-medium text-sm focus:outline-none focus:ring-2 focus:ring-[#9fe870]"
+                      />
+                    </div>
+                    <p className="text-xs text-[#868685]">
+                      Directly downloads video audio stream and creates translation project.
+                    </p>
+                  </div>
+                )}
 
                 {/* Project Name */}
                 <div>
@@ -375,7 +442,7 @@ export default function App() {
                 {/* Signature Wise Green CTA Button */}
                 <button
                   type="submit"
-                  disabled={!videoFile || isSubmitting}
+                  disabled={(inputSourceMode === 'file' && !videoFile) || (inputSourceMode === 'url' && !videoUrl) || isSubmitting}
                   className="w-full bg-[#9fe870] hover:bg-[#cdffad] active:bg-[#c5edab] disabled:opacity-50 text-[#0e0f0c] font-wise-hero text-lg py-4 rounded-[24px] transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-sm border border-[#0e0f0c]"
                 >
                   <Play className="w-5 h-5 fill-current" />
