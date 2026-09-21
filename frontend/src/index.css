@@ -1,7 +1,69 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    @apply bg-slate-900 text-slate-100 antialiased font-sans min-h-screen selection:bg-indigo-500 selection:text-white;
+  :root {
+    --color-primary: #9fe870;
+    --color-primary-active: #cdffad;
+    --color-primary-neutral: #c5edab;
+    --color-primary-pale: #e2f6d5;
+
+    --color-canvas-soft: #e8ebe6;
+    --color-canvas: #ffffff;
+
+    --color-ink: #0e0f0c;
+    --color-ink-deep: #163300;
+    --color-body: #454745;
+    --color-mute: #868685;
+
+    --color-positive: #2ead4b;
+    --color-positive-deep: #054d28;
+    --color-warning: #ffd11a;
+    --color-warning-deep: #b86700;
+    --color-warning-content: #4a3b1c;
+    --color-negative: #d03238;
+    --color-negative-deep: #a72027;
+    --color-negative-darkest: #a7000d;
+    --color-negative-bg: #320707;
+
+    --color-accent-orange: #ffc091;
+    --color-accent-cyan: #38c8ff;
   }
+
+  body {
+    background-color: var(--color-canvas-soft);
+    color: var(--color-ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "calt" 1;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Wise Design Utility Classes */
+.bg-wise-primary { background-color: #9fe870; }
+.bg-wise-primary-active { background-color: #cdffad; }
+.bg-wise-primary-pale { background-color: #e2f6d5; }
+.bg-wise-canvas-soft { background-color: #e8ebe6; }
+.bg-wise-canvas { background-color: #ffffff; }
+.bg-wise-ink { background-color: #0e0f0c; }
+.bg-wise-ink-deep { background-color: #163300; }
+
+.text-wise-ink { color: #0e0f0c; }
+.text-wise-body { color: #454745; }
+.text-wise-mute { color: #868685; }
+.text-wise-primary-deep { color: #163300; }
+.text-wise-positive { color: #054d28; }
+.text-wise-negative { color: #d03238; }
+
+.border-wise-ink { border-color: #0e0f0c; }
+.border-wise-canvas-soft { border-color: #e8ebe6; }
+
+.rounded-wise-card { border-radius: 24px; }
+.rounded-wise-pill { border-radius: 9999px; }
+
+.font-wise-hero {
+  font-family: 'Inter', sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.03em;
 }
